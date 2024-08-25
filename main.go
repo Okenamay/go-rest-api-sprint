@@ -65,6 +65,7 @@ func getTasks(w http.ResponseWriter, r *http.Request) {
 func postTask(w http.ResponseWriter, r *http.Request) {
 	var task Task
 	var buf bytes.Buffer
+	var checkId string
 	// При ошибке возвращаем статус 400 Bad Request
 	_, err := buf.ReadFrom(r.Body)
 	if err != nil {
@@ -75,6 +76,15 @@ func postTask(w http.ResponseWriter, r *http.Request) {
 	if err = json.Unmarshal(buf.Bytes(), &task); err != nil {
 		// При ошибке возвращаем статус 400 Bad Request
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Вводим проверку на наличие задачи с указанным в теле запроса ID:
+	checkId = task.ID
+	_, check := tasks[checkId]
+	if check {
+		// В случае наличия задачи с указанным в теле запроса ID в мапе возвращаем статус 400 Bad Request
+		http.Error(w, "Такое задание уже есть", http.StatusBadRequest)
 		return
 	}
 
@@ -106,7 +116,11 @@ func getTask(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	// При успешном выполнении запроса возвращаем статус 200 OK
 	w.WriteHeader(http.StatusOK)
-	w.Write(resp)
+	_, err = w.Write(resp)
+	if err != nil {
+		// При наличии ошибки записи выводим ошибку:
+		fmt.Println("При записи возникла ошибка:", err)
+	}
 }
 
 // 4. Обработчик удаления задачи по ID
@@ -121,13 +135,6 @@ func deleteTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	delete(tasks, id)
-
-	_, ok1 := tasks[id]
-	if ok1 {
-		// В случае наличия задачи в мапе после удаления возвращаем статус 400 Bad Request
-		http.Error(w, "Задание не было удалено", http.StatusBadRequest)
-		return
-	}
 
 	w.Header().Set("Content-Type", "application/json")
 	// При успешном выполнении запроса возвращаем статус 200 OK
